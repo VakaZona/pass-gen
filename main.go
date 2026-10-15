@@ -11,6 +11,7 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	"runtime"
 	"strconv"
 	"strings"
 )
@@ -148,13 +149,38 @@ func generate(c Config) (string, error) {
 		}
 	}
 }
+
+var version = "dev"
+
 func copyPassword(password string) error {
-	cmd := exec.Command("/usr/bin/pbcopy")
+	var cmd *exec.Cmd
+	switch runtime.GOOS {
+	case "darwin":
+		cmd = exec.Command("/usr/bin/pbcopy")
+	case "linux":
+		if os.Getenv("WAYLAND_DISPLAY") != "" {
+			if path, err := exec.LookPath("wl-copy"); err == nil {
+				cmd = exec.Command(path)
+			}
+		}
+		if cmd == nil && os.Getenv("DISPLAY") != "" {
+			if path, err := exec.LookPath("xclip"); err == nil {
+				cmd = exec.Command(path, "-selection", "clipboard")
+			} else if path, err := exec.LookPath("xsel"); err == nil {
+				cmd = exec.Command(path, "--clipboard", "--input")
+			}
+		}
+		if cmd == nil {
+			return errors.New("Linux clipboard requires a desktop session and wl-copy (wl-clipboard), xclip or xsel; use --no-copy on a server")
+		}
+	default:
+		return errors.New("clipboard is supported on macOS and Linux only")
+	}
 	cmd.Stdin = strings.NewReader(password)
 	return cmd.Run()
 }
 
-const help = `pass-gen — generate a password and copy it to the macOS clipboard
+const help = `pass-gen — generate a password and copy it to the clipboard
 
 Usage:
   pass-gen [options]
@@ -172,11 +198,16 @@ Options (override saved settings for this run):
   --exclude-ambiguous=true|false   Exclude i l I o O 0 1
   --no-copy                       Print without copying
   --help
+  --version
 
 Config keys: length, uppercase, lowercase, digits, symbols, exclude_ambiguous
 `
 
 func run(args []string, out io.Writer, copyFn func(string) error) error {
+	if len(args) == 1 && args[0] == "--version" {
+		_, err := fmt.Fprintln(out, "pass-gen", version)
+		return err
+	}
 	if len(args) > 0 && (args[0] == "--help" || args[0] == "-h" || args[0] == "help") {
 		_, err := io.WriteString(out, help)
 		return err

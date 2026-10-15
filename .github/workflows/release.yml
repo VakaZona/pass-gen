@@ -1,0 +1,33 @@
+name: Release
+on:
+  push:
+    tags:
+      - 'v*'
+permissions:
+  contents: write
+jobs:
+  release:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-go@v5
+        with:
+          go-version-file: go.mod
+          cache: false
+      - run: go test ./...
+      - name: Build release binaries
+        env:
+          RELEASE_TAG: ${{ github.ref_name }}
+        run: sh scripts/build-release.sh "$RELEASE_TAG"
+      - name: Check installer
+        run: sh scripts/test-installer.sh
+      - name: Publish release
+        env:
+          GH_TOKEN: ${{ github.token }}
+          RELEASE_TAG: ${{ github.ref_name }}
+        run: >-
+          gh release create "$RELEASE_TAG"
+          dist/pass-gen_darwin_amd64 dist/pass-gen_darwin_arm64
+          dist/pass-gen_linux_amd64 dist/pass-gen_linux_arm64
+          dist/checksums.txt dist/VERSION dist/install.sh
+          --verify-tag --title "pass-gen $RELEASE_TAG" --generate-notes
