@@ -83,6 +83,19 @@ pass-gen --version                   # Show installed version
 pass-gen --help                      # Show all options
 ```
 
+In a terminal, the password is highlighted and followed by its clipboard status:
+
+```text
+  pass-gen  new password
+
+  │ q8R!mW2@vN5#tY7$kP9z
+
+  ✓ Copied to clipboard  · 20 characters
+  a–z · A–Z · 0–9 · symbols
+```
+
+Use `--plain` to disable formatting. Set `NO_COLOR` to keep the layout without colors. Output redirected to a file or pipe automatically stays plain.
+
 Command-line options apply only to the current run. Use `--option=false` to disable a boolean option.
 
 ## Configuration
@@ -92,11 +105,25 @@ pass-gen config                         # Show current settings
 pass-gen config set length 24            # Save a new default length
 pass-gen config set symbols false        # Disable symbols by default
 pass-gen config set exclude_ambiguous true
+pass-gen config --json                  # Show settings as JSON
 pass-gen config path                    # Show the config file location
 pass-gen config reset                   # Restore defaults
 ```
 
-Changes take effect on the next run.
+Settings are displayed as a readable table in the terminal. Saving or resetting settings shows a confirmation and the config file location.
+
+```text
+  pass-gen  settings
+
+  Length                 20 characters
+  Lowercase letters      ● on
+  Uppercase letters      ● on
+  Digits                 ● on
+  Symbols                ● on
+  Exclude ambiguous      ● on
+```
+
+Use `pass-gen config --json` for machine-readable output, or `pass-gen --plain config` for the original JSON view. Redirected config output is JSON automatically. Changes take effect on the next run.
 
 | Setting | Default | Description |
 | --- | --- | --- |
@@ -121,7 +148,7 @@ Settings are stored in `~/.config/pass-gen/config.json`. If `XDG_CONFIG_HOME` is
 
 ## Output behavior
 
-On a successful generation, stdout contains only the password followed by a newline. The clipboard receives the password without the newline.
+Interactive terminals show the formatted password and status. With redirected output or `--plain`, stdout contains only the password followed by a newline. The clipboard always receives only the password, without formatting or a newline. Config changes and resets print confirmations only in interactive mode.
 
 If copying fails, the password is still printed, an error is written to stderr, and the command exits with status `1`. Use `--no-copy` when copying is unnecessary.
 

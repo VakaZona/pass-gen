@@ -185,6 +185,7 @@ const help = `pass-gen — generate a password and copy it to the clipboard
 Usage:
   pass-gen [options]
   pass-gen config                 Show current settings
+  pass-gen config --json          Show settings as JSON
   pass-gen config set KEY VALUE   Save a setting
   pass-gen config reset           Restore defaults
   pass-gen config path            Show config file path
@@ -197,6 +198,7 @@ Options (override saved settings for this run):
   --symbols=true|false
   --exclude-ambiguous=true|false   Exclude i l I o O 0 1
   --no-copy                       Print without copying
+  --plain                         Disable terminal formatting (also before config)
   --help
   --version
 
@@ -204,13 +206,20 @@ Config keys: length, uppercase, lowercase, digits, symbols, exclude_ambiguous
 `
 
 func run(args []string, out io.Writer, copyFn func(string) error) error {
+	return runWithUI(args, out, copyFn, newTerminalUI(out))
+}
+
+func runWithUI(args []string, out io.Writer, copyFn func(string) error, ui terminalUI) error {
+	if len(args) > 0 && args[0] == "--plain" {
+		ui.pretty = false
+		args = args[1:]
+	}
 	if len(args) == 1 && args[0] == "--version" {
 		_, err := fmt.Fprintln(out, "pass-gen", version)
 		return err
 	}
 	if len(args) > 0 && (args[0] == "--help" || args[0] == "-h" || args[0] == "help") {
-		_, err := io.WriteString(out, help)
-		return err
+		return ui.help(out)
 	}
 	path, err := configPath()
 	if err != nil {
@@ -222,19 +231,25 @@ func run(args []string, out io.Writer, copyFn func(string) error) error {
 			return err
 		}
 		if len(args) == 2 && args[1] == "reset" {
-			return saveConfig(path, defaults())
+			if err := saveConfig(path, defaults()); err != nil {
+				return err
+			}
+			return ui.saved(out, "Defaults restored", path)
 		}
 		c, err := loadConfig(path)
 		if err != nil {
 			return err
 		}
-		if len(args) == 1 {
+		if len(args) == 1 && ui.pretty {
+			return ui.settings(out, c, path)
+		}
+		if len(args) == 1 || (len(args) == 2 && args[1] == "--json") {
 			enc := json.NewEncoder(out)
 			enc.SetIndent("", "  ")
 			return enc.Encode(c)
 		}
 		if len(args) != 4 || args[1] != "set" {
-			return errors.New("usage: pass-gen config [set KEY VALUE | reset | path]")
+			return errors.New("usage: pass-gen config [--json | set KEY VALUE | reset | path]")
 		}
 		key, value := args[2], args[3]
 		if key == "length" {
@@ -250,7 +265,10 @@ func run(args []string, out io.Writer, copyFn func(string) error) error {
 		if err != nil {
 			return fmt.Errorf("invalid value for %s: %w", key, err)
 		}
-		return saveConfig(path, c)
+		if err := saveConfig(path, c); err != nil {
+			return err
+		}
+		return ui.saved(out, key+" → "+configValue(c, key), path)
 	}
 	c, err := loadConfig(path)
 	if err != nil {
@@ -265,10 +283,14 @@ func run(args []string, out io.Writer, copyFn func(string) error) error {
 	flags.BoolVar(&c.Symbols, "symbols", c.Symbols, "include symbols")
 	flags.BoolVar(&c.ExcludeAmbiguous, "exclude-ambiguous", c.ExcludeAmbiguous, "exclude ambiguous characters")
 	noCopy := flags.Bool("no-copy", false, "skip clipboard")
-	if err := flags.Parse(args); err != nil {
+	plain := flags.Bool("plain", false, "disable terminal formatting")
+	parseErr := flags.Parse(args)
+	if *plain {
+		ui.pretty = false
+	}
+	if err := parseErr; err != nil {
 		if errors.Is(err, flag.ErrHelp) {
-			_, err := io.WriteString(out, help)
-			return err
+			return ui.help(out)
 		}
 		return err
 	}
@@ -279,7 +301,7 @@ func run(args []string, out io.Writer, copyFn func(string) error) error {
 	if err != nil {
 		return err
 	}
-	if _, err := fmt.Fprintln(out, password); err != nil {
+	if err := ui.password(out, password); err != nil {
 		return err
 	}
 	if !*noCopy {
@@ -287,11 +309,16 @@ func run(args []string, out io.Writer, copyFn func(string) error) error {
 			return fmt.Errorf("password printed, but clipboard copy failed: %w", err)
 		}
 	}
-	return nil
+	return ui.status(out, !*noCopy, len(password), c)
 }
 func main() {
 	if err := run(os.Args[1:], os.Stdout, copyPassword); err != nil {
-		fmt.Fprintln(os.Stderr, "pass-gen:", err)
+		ui := newTerminalUI(os.Stderr)
+		if ui.pretty {
+			fmt.Fprintf(os.Stderr, "\n  %s %s\n\n", ui.paint("31;1", "✗"), err)
+		} else {
+			fmt.Fprintln(os.Stderr, "pass-gen:", err)
+		}
 		os.Exit(1)
 	}
 }
