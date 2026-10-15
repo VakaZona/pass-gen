@@ -1,108 +1,168 @@
 # pass-gen
 
-Генератор случайных паролей для macOS и Linux на Go. Каждый запуск выводит новый пароль и сразу копирует его в буфер обмена. Пароли не сохраняются; в конфиге находятся только настройки. Буфер обмена содержит пароль до следующего изменения буфера, а вывод остаётся в истории терминала.
+**A password in your terminal. Ready to paste.**
 
-## Сборка и запуск
+[![Release](https://img.shields.io/github/v/release/VakaZona/pass-gen)](https://github.com/VakaZona/pass-gen/releases)
+[![Release workflow](https://github.com/VakaZona/pass-gen/actions/workflows/release.yml/badge.svg)](https://github.com/VakaZona/pass-gen/actions/workflows/release.yml)
+![Platforms](https://img.shields.io/badge/platforms-macOS%20%7C%20Linux-blue)
 
-Требуется Go 1.25 или новее.
+Generate a random password, print it, and copy it to your clipboard with one command. Save your preferences once and use them on every run.
 
-```sh
-make build
-./bin/pass-gen
-```
+- **Secure randomness** using Go's `crypto/rand`.
+- **Your defaults** for length, letters, digits, and symbols.
+- **Ready to paste** with automatic clipboard copying.
+- **Standalone binaries** for macOS and Linux on x86_64 and ARM64.
+- **No password storage** — only generation settings are saved.
 
-Чтобы вызывать команду из любого каталога, добавьте каталог `bin` проекта в `PATH` (для текущего терминала):
-
-```sh
-export PATH="/Users/valery/Projects/password-mac/bin:$PATH"
-pass-gen
-```
-
-Для постоянного действия добавьте строку `export` в `~/.zshrc`.
-
-## Настройки
-
-```sh
-pass-gen config
-pass-gen config set length 24
-pass-gen config set symbols false
-pass-gen config set exclude_ambiguous false
-pass-gen config path
-pass-gen config reset
-```
-
-По умолчанию: длина 20, строчные и заглавные латинские буквы, цифры и спецсимволы. Неоднозначные символы `i l I o O 0 1` исключены. Спецсимволы: `!@#$%^&*()-_=+[]{};:,.?/~`.
-
-Настройки хранятся в `~/.config/pass-gen/config.json`, либо в `$XDG_CONFIG_HOME/pass-gen/config.json`, если переменная задана абсолютным путём. Файл создаётся при сохранении настройки или сбросе; без файла используются значения по умолчанию. Изменения вступают в силу при следующем запуске.
-
-Ключи: `length`, `uppercase`, `lowercase`, `digits`, `symbols`, `exclude_ambiguous`. Для логических значений используйте `true` или `false`. Длина: от 1 до 4096, не меньше числа включённых категорий; должна быть включена хотя бы одна категория. Каждый пароль содержит хотя бы один символ каждой включённой категории. Генерация использует `crypto/rand` с равномерной выборкой среди паролей, удовлетворяющих настройкам.
-
-Параметры команды переопределяют настройки только для текущего запуска:
-
-```sh
-pass-gen --length 32 --symbols=false
-pass-gen --no-copy
-pass-gen --help
-```
-
-Для булевых параметров команды нужен синтаксис `--symbols=false`, а не `--symbols false`. При ошибке копирования пароль уже выведен, сообщение об ошибке поступает в stderr, код завершения — 1. При успешном запуске stdout содержит только пароль и перевод строки; в буфер копируется пароль без перевода строки.
-
-## Проверка
-
-```sh
-make test
-```
-
-Тесты проверяют состав паролей, ограничения настроек, сохранение и сброс, временные переопределения, повреждённый конфиг и ошибки буфера обмена.
-
-## Установка из GitHub Releases
-
-После публикации первого релиза с установщиком:
+## Install
 
 ```sh
 curl -fsSL https://github.com/VakaZona/pass-gen/releases/latest/download/install.sh | sh
 ```
 
-Установщик выбирает macOS/Linux и ARM64/x86_64, скачивает готовый бинарник, проверяет SHA-256 и устанавливает его в `~/.local/bin/pass-gen`. Go, Git и Homebrew на целевом компьютере не нужны. Нужен `curl` и `shasum` либо `sha256sum`. Для zsh и bash установщик добавляет этот каталог в PATH, если его ещё нет. После первой установки открой новый терминал:
+Open a new terminal, then run:
 
 ```sh
-pass-gen --version
 pass-gen
 ```
 
-Повторный запуск установки обновляет программу и сохраняет настройки. Можно скачать `install.sh` из релиза, прочитать его и выполнить `sh install.sh` вместо запуска через pipe. Для конкретной версии:
+The installer downloads the latest release for your system, verifies its SHA-256 checksum, and installs it to `~/.local/bin/pass-gen`. It adds that directory to your zsh or bash configuration if needed. Other shells require a manual PATH update.
+
+No Go, Git, Homebrew, or `sudo` required. You need `curl` and either `shasum` or `sha256sum`. Release downloads become available after the first successful release workflow.
+
+> **Updating:** run the same install command again. Your saved settings are preserved.
+
+<details>
+<summary>Installation options</summary>
+
+To review the installer before running it:
 
 ```sh
-curl -fsSL https://github.com/VakaZona/pass-gen/releases/download/v0.1.1/install.sh | PASS_GEN_VERSION=v0.1.1 sh
+curl -fL https://github.com/VakaZona/pass-gen/releases/latest/download/install.sh -o install.sh
+# Read install.sh, then:
+sh install.sh
 ```
 
-Переменная `PASS_GEN_INSTALL_DIR` задаёт другой каталог установки; для него PATH нужно настроить самостоятельно. `PASS_GEN_NO_PATH=1` отключает изменение настроек оболочки.
-
-### Буфер обмена на Linux
-
-В графической сессии Wayland установи `wl-clipboard` (команда `wl-copy`), в X11 — `xclip` или `xsel`. Например, на Ubuntu/Debian:
+To install a specific published version, replace `v0.1.1` as needed:
 
 ```sh
-sudo apt install wl-clipboard  # Wayland
-sudo apt install xclip         # X11, вместо wl-clipboard
+curl -fsSL https://github.com/VakaZona/pass-gen/releases/download/v0.1.1/install.sh \
+  | PASS_GEN_VERSION=v0.1.1 sh
 ```
 
-На сервере без графической сессии используй `pass-gen --no-copy`. При отсутствии доступного буфера пароль будет выведен, а команда сообщит об ошибке копирования.
+| Environment variable | Purpose |
+| --- | --- |
+| `PASS_GEN_VERSION` | Install a specific release, such as `v0.1.1`. |
+| `PASS_GEN_INSTALL_DIR` | Override the install directory. Add it to PATH yourself. |
+| `PASS_GEN_NO_PATH=1` | Leave your shell configuration unchanged. |
 
-## Публикация новой версии
+You can also download a binary directly from [Releases](https://github.com/VakaZona/pass-gen/releases).
 
-В проект добавлен workflow `.github/workflows/release.yml`: после push тега он запускает тесты, собирает четыре бинарника и публикует GitHub Release с установщиком и контрольными суммами. Используется встроенный GitHub Actions token; дополнительный токен не нужен.
+</details>
 
-Опубликуй изменения и новый тег (не переиспользуй уже существующий `v0.1.0`):
+### Clipboard on Linux
+
+macOS uses its built-in `pbcopy`. On Linux, install a clipboard tool for your desktop session:
+
+| Session | Required tool | Ubuntu / Debian |
+| --- | --- | --- |
+| Wayland | `wl-copy` | `sudo apt install wl-clipboard` |
+| X11 | `xclip` or `xsel` | `sudo apt install xclip` |
+
+On a server or over SSH without a desktop clipboard, use `pass-gen --no-copy`.
+
+## Usage
 
 ```sh
-git add main.go README.md install.sh scripts .github
-git commit -m "Add GitHub release builds and installer for macOS and Linux"
+pass-gen                            # Generate, print, and copy
+pass-gen --length 32                 # Override length for this run
+pass-gen --symbols=false             # Skip symbols for this run
+pass-gen --length 24 --symbols=false # Combine overrides
+pass-gen --no-copy                   # Print without copying
+pass-gen --version                   # Show installed version
+pass-gen --help                      # Show all options
+```
+
+Command-line options apply only to the current run. Use `--option=false` to disable a boolean option.
+
+## Configuration
+
+```sh
+pass-gen config                         # Show current settings
+pass-gen config set length 24            # Save a new default length
+pass-gen config set symbols false        # Disable symbols by default
+pass-gen config set exclude_ambiguous true
+pass-gen config path                    # Show the config file location
+pass-gen config reset                   # Restore defaults
+```
+
+Changes take effect on the next run.
+
+| Setting | Default | Description |
+| --- | --- | --- |
+| `length` | `20` | Number of characters, from 1 to 4096. |
+| `lowercase` | `true` | Include lowercase Latin letters. |
+| `uppercase` | `true` | Include uppercase Latin letters. |
+| `digits` | `true` | Include digits. |
+| `symbols` | `true` | Include special characters. |
+| `exclude_ambiguous` | `true` | Exclude `i`, `l`, `I`, `o`, `O`, `0`, and `1`. |
+
+Each password contains at least one character from every enabled category. At least one category must be enabled, and the length must be at least the number of enabled categories.
+
+Available symbols:
+
+```text
+!@#$%^&*()-_=+[]{};:,.?/~
+```
+
+Settings are stored in `~/.config/pass-gen/config.json`. If `XDG_CONFIG_HOME` is set to an absolute path, that directory is used instead. The file is created when you save or reset settings; built-in defaults apply until then.
+
+**Settings priority:** command-line options → saved configuration → built-in defaults.
+
+## Output behavior
+
+On a successful generation, stdout contains only the password followed by a newline. The clipboard receives the password without the newline.
+
+If copying fails, the password is still printed, an error is written to stderr, and the command exits with status `1`. Use `--no-copy` when copying is unnecessary.
+
+Passwords are not saved by the application. Printed passwords remain in terminal scrollback, and copied passwords remain in the clipboard until it changes.
+
+## Development
+
+Requires **Go 1.25 or later**.
+
+```sh
+git clone https://github.com/VakaZona/pass-gen.git
+cd pass-gen
+make build
+./bin/pass-gen
+```
+
+Run the tests:
+
+```sh
+make test
+```
+
+Build all four release binaries and check the installer locally:
+
+```sh
+sh scripts/build-release.sh v0.1.1
+sh scripts/test-installer.sh
+```
+
+The installer check uses local fixtures without downloading files or changing your shell configuration.
+
+### Publish a release
+
+Commit and push your changes, then create a new stable version tag:
+
+```sh
 git push origin main
 git tag v0.1.1
 git push origin v0.1.1
 ```
 
-Дождись успешного workflow в https://github.com/VakaZona/pass-gen/actions и проверь файлы в https://github.com/VakaZona/pass-gen/releases. После этого команда установки выше работает на другом компьютере. Репозиторий должен быть публичным, GitHub Actions — включён.
+Use a new `vMAJOR.MINOR.PATCH` tag for each release. Replace `v0.1.1` with your next version; do not move existing tags.
 
-Локальная сборка release-файлов: `sh scripts/build-release.sh v0.1.1`. Поддерживаются стабильные версии с тегами `vMAJOR.MINOR.PATCH`.
+[GitHub Actions](https://github.com/VakaZona/pass-gen/actions) runs the tests, builds the macOS and Linux binaries, checks the installer, and publishes a [release](https://github.com/VakaZona/pass-gen/releases) containing the binaries, installer, version file, and checksums. The workflow uses GitHub's built-in token; no additional secret is required.
